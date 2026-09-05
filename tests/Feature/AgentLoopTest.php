@@ -48,7 +48,7 @@ class AgentLoopTest extends TestCase
     {
         config([
             'webcontent.search.provider' => 'tavily',
-            'webcontent.search.tavily_api_key' => 'tavily-key',
+            'webcontent.search.api_key' => 'tavily-key',
         ]);
 
         Http::fake(['api.tavily.com/*' => Http::response([

@@ -42,10 +42,9 @@ return [
         'cron' => env('WEBCONTENT_AGENT_CRON', '0 5 * * *'),
         'max_pages_per_run' => (int) env('WEBCONTENT_AGENT_MAX_PAGES', 5),
         'max_search_queries_per_page' => 3,
-        'discovery_topics' => [
-            // 'UK self storage market prices 2026',
-            // 'Hong Kong relocation regulations update',
-        ],
+        // Comma-separated via env, e.g.
+        // WEBCONTENT_DISCOVERY_TOPICS="UK storage prices 2026, HK relocation rules"
+        'discovery_topics' => array_values(array_filter(array_map('trim', explode(',', (string) env('WEBCONTENT_DISCOVERY_TOPICS', ''))))),
         'content_chars_sent_to_ai' => 6000,
         'min_confidence' => 0.6, // proposals below are discarded silently
     ],
@@ -90,7 +89,7 @@ return [
     */
     'search' => [
         'provider' => env('WEBCONTENT_SEARCH_PROVIDER', 'none'),
-        'tavily_api_key' => env('WEBCONTENT_TAVILY_API_KEY'),
+        'api_key' => env('WEBCONTENT_SEARCH_API_KEY'),
         'max_results' => 5,
     ],
 

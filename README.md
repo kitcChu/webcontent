@@ -155,7 +155,7 @@ WEBCONTENT_AI_JSON_MODE=false           # off if the server lacks response_forma
 WEBCONTENT_AI_NO_THINKING=template      # false | budget | template | both (see below)
 
 WEBCONTENT_SEARCH_PROVIDER=tavily       # none | tavily
-WEBCONTENT_TAVILY_API_KEY=tvly-...
+WEBCONTENT_SEARCH_API_KEY=tvly-...
 
 WEBCONTENT_NOTIFY_EMAIL=you@example.com
 WEBCONTENT_TELEGRAM_BOT_TOKEN=123:abc

@@ -14,7 +14,7 @@ class WebSearcher
     public function enabled(): bool
     {
         return config('webcontent.search.provider') === 'tavily'
-            && (bool) config('webcontent.search.tavily_api_key');
+            && (bool) config('webcontent.search.api_key');
     }
 
     /**
@@ -28,7 +28,7 @@ class WebSearcher
 
         $response = Http::timeout((int) config('webcontent.ai.timeout', 120))
             ->post('https://api.tavily.com/search', [
-                'api_key' => config('webcontent.search.tavily_api_key'),
+                'api_key' => config('webcontent.search.api_key'),
                 'query' => $query,
                 'search_depth' => 'basic',
                 'max_results' => (int) config('webcontent.search.max_results', 5),
