@@ -27,11 +27,22 @@ class AiClient
             $body['response_format'] = ['type' => 'json_object'];
         }
 
-        // llama.cpp-style switch to skip chain-of-thought. Reasoning models
-        // burn tokens (and minutes on slow boxes) before answering; with
-        // thinking off, replies land directly in `content`.
-        if (config('webcontent.ai.no_thinking', false)) {
+        // Thinking-suppression, server-dependent. Config value:
+        //   false/'0'      -> send nothing (default)
+        //   true/'1'/'budget'  -> reasoning_budget: 0        (llama.cpp budget switch)
+        //   'template'     -> chat_template_kwargs.enable_thinking=false (Qwen3-style)
+        //   'both'         -> send both
+        // NOTE: strict cloud APIs (OpenAI) reject unknown arguments — only
+        // enable this against local/self-hosted servers.
+        $mode = strtolower(trim((string) (config('webcontent.ai.no_thinking', false))));
+        $truthy = in_array($mode, ['1', 'true', 'budget'], true);
+
+        if ($truthy || $mode === 'both') {
             $body['reasoning_budget'] = 0;
+        }
+
+        if (in_array($mode, ['template', 'both'], true)) {
+            $body['chat_template_kwargs'] = ['enable_thinking' => false];
         }
 
         $response = Http::withToken((string) config('webcontent.ai.api_key'))
@@ -65,6 +76,7 @@ class AiClient
 
     protected function decode(string $content): array
     {
+        $content = $this->stripThinkBlocks($content);
         $content = trim($content);
         $content = preg_replace('/^```(?:json)?\s*|\s*```$/', '', $content) ?? $content;
 
@@ -83,6 +95,24 @@ class AiClient
         }
 
         return $decoded;
+    }
+
+    /**
+     * DeepSeek-style templates emit chain-of-thought inline as
+     * <think>…</think> (sometimes unclosed when generation is truncated).
+     * The JSON answer, if any, lives AFTER the block — and the thinking text
+     * itself often contains draft JSON braces, so it must go BEFORE any
+     * JSON extraction.
+     */
+    protected function stripThinkBlocks(string $content): string
+    {
+        $content = preg_replace('/<think>.*?<\/think>/s', '', $content) ?? $content;
+
+        // Unclosed <think> (truncated generation): everything from the tag
+        // on is reasoning; there is no answer after it.
+        $content = preg_replace('/<think>.*$/s', '', $content) ?? $content;
+
+        return $content;
     }
 
     /**

@@ -33,8 +33,11 @@ class AgentLoopTest extends TestCase
         $sequence = Http::sequence();
 
         foreach ($sequenceResponses as $response) {
+            // '__raw__' => verbatim message content (e.g. raw <think> text);
+            // otherwise the array is the decoded JSON the model "returned".
             $sequence->push([
-                'choices' => [['message' => ['content' => json_encode($response, JSON_UNESCAPED_UNICODE)]]],
+                'choices' => [['message' => ['content' => $response['__raw__']
+                    ?? json_encode($response, JSON_UNESCAPED_UNICODE)]]],
             ]);
         }
 
@@ -304,6 +307,98 @@ class AgentLoopTest extends TestCase
         $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
 
         Http::assertSent(fn ($request) => $request['reasoning_budget'] === 0);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function template_mode_sends_chat_template_kwargs(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.no_thinking' => 'template',
+        ]);
+        $this->fakeAi([['proposals' => []]]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => ($request['chat_template_kwargs']['enable_thinking'] ?? null) === false
+            && !isset($request['reasoning_budget']));
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function both_mode_sends_both_thinking_switches(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.no_thinking' => 'both',
+        ]);
+        $this->fakeAi([['proposals' => []]]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => $request['reasoning_budget'] === 0
+            && ($request['chat_template_kwargs']['enable_thinking'] ?? null) === false);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function no_thinking_off_sends_no_suppression_fields(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.no_thinking' => false,
+        ]);
+        $this->fakeAi([['proposals' => []]]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => !isset($request['reasoning_budget'])
+            && !isset($request['chat_template_kwargs']));
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function inline_deepseek_style_think_blocks_are_stripped_before_parsing(): void
+    {
+        $this->seedPage();
+        config(['webcontent.ai.api_key' => 'test-key', 'webcontent.ai.base_url' => 'https://ai.example.com']);
+
+        // DeepSeek-R1-style inline thinking: <think> contains DRAFT JSON that
+        // must NOT be mistaken for the answer; the real JSON follows it.
+        $content = '<think>The price £900 is stale. Draft: {"proposals":[{"action":"none"}]}</think>'
+            .'Here is my audit: {"proposals":[{"action":"update","slug":"london-rate",'
+            .'"rationale":"2026 price","confidence":0.9,"proposed":{"content":"<p>New</p>"}}]}';
+
+        Http::fake(['ai.example.com/*' => Http::response([
+            'choices' => [['message' => ['role' => 'assistant', 'content' => $content]]],
+        ])]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        $this->assertSame(1, ContentProposal::query()->count());
+        $this->assertSame('2026 price', ContentProposal::query()->sole()->rationale);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function truncated_think_block_fails_that_page_only_and_run_continues(): void
+    {
+        WebContent::create(['slug' => 'page-a', 'title' => 'A', 'content' => 'a', 'is_web_page' => true]);
+        WebContent::create(['slug' => 'page-b', 'title' => 'B', 'content' => 'b', 'is_web_page' => true]);
+        config(['webcontent.ai.api_key' => 'test-key', 'webcontent.ai.base_url' => 'https://ai.example.com']);
+
+        // Page A: generation cut off mid-thinking (unclosed <think>, no
+        // answer after it). Page B: healthy reply. The run must survive.
+        $this->fakeAi([
+            ['__raw__' => '<think>Let me consider the content. The price of'],
+            ['proposals' => [['action' => 'none', 'slug' => 'page-b', 'confidence' => 1.0]]],
+        ]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        $this->assertSame(0, ContentProposal::query()->count());
     }
 
     #[\PHPUnit\Framework\Attributes\Test]

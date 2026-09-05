@@ -152,7 +152,7 @@ WEBCONTENT_AI_MODEL=qwen-flash-next     # exact name served by the endpoint
 WEBCONTENT_AI_API_KEY=local             # any non-empty value for LAN servers
 WEBCONTENT_AI_TIMEOUT=1800              # slow boxes need generous timeouts
 WEBCONTENT_AI_JSON_MODE=false           # off if the server lacks response_format
-WEBCONTENT_AI_NO_THINKING=true          # llama.cpp reasoning_budget=0 (Qwen3/R1)
+WEBCONTENT_AI_NO_THINKING=template      # false | budget | template | both (see below)
 
 WEBCONTENT_SEARCH_PROVIDER=tavily       # none | tavily
 WEBCONTENT_TAVILY_API_KEY=tvly-...
@@ -164,11 +164,17 @@ WEBCONTENT_TELEGRAM_CHAT_ID=42
 
 Notes for self-hosted setups:
 
-- **Reasoning models are handled**: if a reply comes back with empty
-  `content` and the JSON buried in `reasoning_content` (Qwen3 / DeepSeek-R1
-  style), the client extracts it. Set `WEBCONTENT_AI_NO_THINKING=true`
-  (llama.cpp `reasoning_budget=0`) so the model answers directly instead of
-  spending minutes thinking on a slow box.
+- **Thinking suppression modes** (`WEBCONTENT_AI_NO_THINKING`): the right
+  switch depends on the server — `budget` sends `reasoning_budget: 0`
+  (llama.cpp), `template` sends `chat_template_kwargs: {"enable_thinking":
+  false}` (Qwen3-style templates; verified ~4× faster on a llama.cpp box),
+  `both` sends both. Strict cloud APIs (OpenAI) reject unknown arguments —
+  keep it `false` there.
+- **Reasoning models are handled even when thinking stays on**: if a reply
+  comes back with empty `content` and the JSON buried in `reasoning_content`
+  (Qwen3 / DeepSeek-R1 style), or with inline `<think>…</think>` blocks, the
+  client extracts the JSON. DeepSeek-R1-style templates cannot disable
+  thinking via request at all — the parser is the safety net.
 - **Routers/proxies**: point `WEBCONTENT_AI_BASE_URL` at the proxy and set
   `WEBCONTENT_AI_MODEL` to a name the proxy routes — a proxy that requires a
   model to route on will reject empty/omitted model names.

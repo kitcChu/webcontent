@@ -58,16 +58,20 @@ return [
     |   WEBCONTENT_AI_BASE_URL=http://llm.internal:8080/v1
     |   WEBCONTENT_AI_MODEL=<name your server serves>
     |   WEBCONTENT_AI_API_KEY=local        # any non-empty value; LAN servers ignore it
-    |   WEBCONTENT_AI_TIMEOUT=1800         # slow boxes need a generous timeout
-    |
+    |   WEBCONTENT_AI_TIMEOUT=1800         # slow boxes need a generous timeout    |
     | json_mode sends response_format={"type":"json_object"}. Servers without
     | JSON-grammar support can set WEBCONTENT_AI_JSON_MODE=false — the client
     | still parses JSON out of plain replies.
     |
-    | no_thinking sends reasoning_budget=0 (llama.cpp) so reasoning models
-    | (Qwen3, DeepSeek-R1, …) answer directly instead of burning tokens on
-    | chain-of-thought. Replies buried in reasoning_content are parsed as a
-    | fallback either way.
+    | no_thinking suppresses chain-of-thought on reasoning models — the
+    | mechanism depends on the server:
+    |   WEBCONTENT_AI_NO_THINKING=false       send nothing (default)
+    |   WEBCONTENT_AI_NO_THINKING=budget      reasoning_budget=0 (llama.cpp)
+    |   WEBCONTENT_AI_NO_THINKING=template    chat_template_kwargs.enable_thinking=false (Qwen3)
+    |   WEBCONTENT_AI_NO_THINKING=both        both switches
+    | Replies buried in reasoning_content or inline <think> blocks are parsed
+    | as a fallback regardless. Do NOT enable against strict cloud APIs
+    | (OpenAI rejects unknown arguments).
     */
     'ai' => [
         'base_url' => env('WEBCONTENT_AI_BASE_URL', 'https://api.deepseek.com'),
