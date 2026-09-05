@@ -39,7 +39,7 @@ return [
     */
     'agent' => [
         'schedule_enabled' => env('WEBCONTENT_AGENT_SCHEDULE', false),
-        'cron' => env('WEBCONTENT_AGENT_CRON', '0 6 * * *'),
+        'cron' => env('WEBCONTENT_AGENT_CRON', '0 5 * * *'),
         'max_pages_per_run' => (int) env('WEBCONTENT_AGENT_MAX_PAGES', 5),
         'max_search_queries_per_page' => 3,
         'discovery_topics' => [

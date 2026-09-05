@@ -144,7 +144,7 @@ Safety properties:
 
 ```dotenv
 WEBCONTENT_AGENT_SCHEDULE=true          # register the cron schedule
-WEBCONTENT_AGENT_CRON="0 6 * * *"       # when to run (default 06:00)
+WEBCONTENT_AGENT_CRON="0 5 * * *"       # when to run (default 05:00, APP timezone!)
 WEBCONTENT_AGENT_MAX_PAGES=5            # pages audited per run
 
 WEBCONTENT_AI_API_KEY=sk-...            # DeepSeek/OpenAI-compatible key
@@ -182,6 +182,12 @@ With `WEBCONTENT_AGENT_SCHEDULE=true` the command is registered on the Laravel
 scheduler (remember to run `schedule:work` / the `schedule:run` cron).
 Configure the AI/search keys first — the command aborts with a clear error
 otherwise.
+
+> **Timezone warning:** the cron string is interpreted in the **application
+> timezone** (`APP_TIMEZONE`), not the server's clock. Laravel defaults to
+> UTC — if your app has no `APP_TIMEZONE` set and you sleep in UTC+8, use
+> `"0 21 * * *"` (21:00 UTC = 05:00 HKT), or set `APP_TIMEZONE` explicitly
+> on a fresh app (changing it later shifts existing timestamp rendering).
 
 ### Reviewing
 

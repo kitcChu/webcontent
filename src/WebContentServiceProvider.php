@@ -58,7 +58,7 @@ class WebContentServiceProvider extends ServiceProvider
 
             $app->make(Schedule::class)
                 ->command(WebContentResearchCommand::class)
-                ->cron((string) config('webcontent.agent.cron', '0 6 * * *'))
+                ->cron((string) config('webcontent.agent.cron', '0 5 * * *'))
                 ->withoutOverlapping()
                 ->onOneServer();
         });
