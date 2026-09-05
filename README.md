@@ -1,4 +1,4 @@
-# kit/webcontent
+# kitcchu/webcontent
 
 A self-contained, database-backed CMS for Laravel + Inertia (Vue 3) apps, extracted
 from a production codebase. Any Laravel 11/12 project can require it and get:
@@ -35,11 +35,11 @@ from a production codebase. Any Laravel 11/12 project can require it and get:
 
 ### 1. Require the package (via GitHub + Composer VCS)
 
-Once this repository is pushed to GitHub (`https://github.com/<you>/webcontent`):
+Once this repository is pushed to GitHub (`https://github.com/kitcchu/webcontent`):
 
 ```bash
-composer config repositories.webcontent vcs https://github.com/<you>/webcontent
-composer require kit/webcontent
+composer config repositories.webcontent vcs https://github.com/kitcchu/webcontent
+composer require kitcchu/webcontent
 ```
 
 For local development, use a path repository instead:

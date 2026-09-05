@@ -1,5 +1,5 @@
 {
-    "name": "kit/webcontent",
+    "name": "kitcchu/webcontent",
     "description": "Self-contained database-backed CMS (web_contents) for Laravel + Inertia: slugged pages with per-page locale, style/script injection, head_meta SEO, attached form fragments, admin editor and sitemap.",
     "type": "library",
     "license": "MIT",
