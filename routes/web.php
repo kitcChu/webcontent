@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Kit\WebContent\Http\Controllers\PageController;
+use Kit\WebContent\Http\Controllers\ProposalController;
 use Kit\WebContent\Http\Controllers\SitemapController;
 
 /*
@@ -17,18 +18,37 @@ Route::get('/pages/{slug}', function (string $slug) {
 
 /*
 |--------------------------------------------------------------------------
-| Admin editor routes (always registered)
+| Admin routes (always registered)
 |--------------------------------------------------------------------------
 | Authorization comes from config('webcontent.middleware') + the
 | config('webcontent.gate') ability, applied by the service provider.
+|
+| Review page: normal admin protection.
+| Approve/Discard: SIGNED urls only (email/Telegram clicks) — the signature
+| + expiry is the authorization, no session required.
 */
-Route::middleware((array) config('webcontent.middleware', ['web']))
-    ->group(function () {
-        Route::get('/web-content/{webContent}/edit', [PageController::class, 'edit'])
-            ->name('web-content.edit');
-        Route::put('/web-content/{webContent}', [PageController::class, 'update'])
-            ->name('web-content.update');
-    });
+$adminMiddleware = (array) config('webcontent.middleware', ['web']);
+
+Route::middleware($adminMiddleware)->group(function () {
+    Route::get('/web-content/proposals', [ProposalController::class, 'index'])
+        ->name('webcontent.proposals.index');
+
+    Route::get('/web-content/{webContent}/edit', [PageController::class, 'edit'])
+        ->name('web-content.edit');
+    Route::put('/web-content/{webContent}', [PageController::class, 'update'])
+        ->name('web-content.update');
+});
+
+// `web` is included because implicit model binding runs inside the
+// SubstituteBindings middleware of the web group; `signed` authorizes
+// the click. No auth on purpose — see config('webcontent.notify').
+Route::get('/web-content/proposals/{proposal}/approve', [ProposalController::class, 'approve'])
+    ->middleware(['web', 'signed'])
+    ->name('webcontent.proposals.approve');
+
+Route::get('/web-content/proposals/{proposal}/discard', [ProposalController::class, 'discard'])
+    ->middleware(['web', 'signed'])
+    ->name('webcontent.proposals.discard');
 
 /*
 |--------------------------------------------------------------------------

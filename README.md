@@ -19,6 +19,10 @@ from a production codebase. Any Laravel 11/12 project can require it and get:
   editor; `PUT /web-content/{id}` validates (title/slug uniqueness/reserved
   slugs/locale/head-meta JSON) and persists.
 - **Sitemap** — `GET /sitemap.xml` lists the homepage plus every web page.
+- **AI content agent (optional)** — a scheduled agent researches fresh data,
+  audits every page and proposes `add` / `update` / `remove` changes. It
+  **never touches `web_contents` by itself**: each proposal waits for your
+  approval via email/Telegram (signed one-click links) or the review UI.
 
 ## Requirements
 
@@ -98,6 +102,95 @@ Gate::define('manage-web-content', function ($user) {
 
 Set `'gate' => null` in the config to skip the ability check (not recommended),
 or `'middleware' => ['web']` to skip authentication entirely.
+
+## The AI agent in the loop
+
+The package's maintenance loop — the agent proposes, **you** decide:
+
+```
+┌────────────┐   1. schedule      ┌─────────────────────────────────────┐
+│ cron /     │ ─────────────────▶ │ webcontent:research                 │
+│ scheduler  │                    │  2. for each page:                  │
+└────────────┘                    │     a. AI picks search queries      │
+                                  │     b. fresh data fetched (Tavily)  │
+                                  │     c. AI proposes update/remove/none│
+                                  │  3. discovery: searches configured  │
+                                  │     topics → proposes NEW pages     │
+                                  └──────────────┬──────────────────────┘
+                                                 │ 4. proposals saved (pending)
+                                                 ▼
+                                  ┌─────────────────────────────────────┐
+                                  │ ✉️  email + Telegram to YOU:        │
+                                  │ "propose N changes" with            │
+                                  │ [Approve] / [Discard] signed links  │
+                                  └──────────────┬──────────────────────┘
+                                                 │ 5. your click applies
+                                                 ▼
+                                  web_contents updated / created /
+                                  soft-deleted (removals reversible)
+```
+
+Safety properties:
+
+- **Nothing changes without an explicit approval.** The agent only writes
+  `webcontent_proposals` rows.
+- Decision links are **signed and expiring** (`links_expire_days`, default 7) —
+  no login needed to click them from email/Telegram, but they cannot be
+  forged. Low-confidence proposals (below `min_confidence`) and duplicates of
+  already-pending proposals are dropped.
+- `remove` proposals **soft-delete**, so any removal is reversible.
+
+### Configuration (env)
+
+```dotenv
+WEBCONTENT_AGENT_SCHEDULE=true          # register the cron schedule
+WEBCONTENT_AGENT_CRON="0 6 * * *"       # when to run (default 06:00)
+WEBCONTENT_AGENT_MAX_PAGES=5            # pages audited per run
+
+WEBCONTENT_AI_API_KEY=sk-...            # DeepSeek/OpenAI-compatible key
+WEBCONTENT_AI_BASE_URL=https://api.deepseek.com
+WEBCONTENT_AI_MODEL=deepseek-chat
+
+WEBCONTENT_SEARCH_PROVIDER=tavily       # none | tavily
+WEBCONTENT_TAVILY_API_KEY=tvly-...
+
+WEBCONTENT_NOTIFY_EMAIL=you@example.com
+WEBCONTENT_TELEGRAM_BOT_TOKEN=123:abc
+WEBCONTENT_TELEGRAM_CHAT_ID=42
+```
+
+`discovery_topics` (config file) lists subjects the agent researches to propose
+brand-new pages, e.g.:
+
+```php
+'discovery_topics' => [
+    'UK self storage market prices 2026',
+    'Hong Kong relocation regulations update',
+],
+```
+
+### Running
+
+```bash
+php artisan webcontent:research            # audit + propose + ask you
+php artisan webcontent:research --slug=london-rate
+php artisan webcontent:research --dry-run  # print proposals, persist nothing
+php artisan webcontent:research --no-notify
+```
+
+With `WEBCONTENT_AGENT_SCHEDULE=true` the command is registered on the Laravel
+scheduler (remember to run `schedule:work` / the `schedule:run` cron).
+Configure the AI/search keys first — the command aborts with a clear error
+otherwise.
+
+### Reviewing
+
+- **Email / Telegram** — each message lists the proposals with one-click
+  `✅ Approve` / `🗑 Discard` signed links.
+- **Review UI** — `/web-content/proposals` (protected by the same
+  middleware + gate as the admin editor) lists pending and past decisions.
+- **HTTP** — `GET /web-content/proposals/{id}/approve` (signed URL) also
+  returns JSON with `Accept: application/json`.
 
 ## Front-end wiring
 
@@ -197,6 +290,9 @@ Renderer behaviour (from the source system):
 
 | Method | URI                          | Name                | Notes                              |
 |--------|------------------------------|---------------------|------------------------------------|
+| GET    | `/web-content/proposals`     | `webcontent.proposals.index` | Agent proposal review UI (gated)   |
+| GET    | `/web-content/proposals/{id}/approve` | `webcontent.proposals.approve` | SIGNED url, applies the proposal   |
+| GET    | `/web-content/proposals/{id}/discard` | `webcontent.proposals.discard` | SIGNED url, rejects the proposal   |
 | GET    | `/web-content/{id}/edit`     | `web-content.edit`  | Admin editor (middleware + gate)   |
 | PUT    | `/web-content/{id}`          | `web-content.update`| Admin update (middleware + gate)   |
 | GET    | `/pages/{slug}`              | —                   | 301 → `/{slug}`                    |
@@ -215,9 +311,10 @@ composer install
 composer test
 ```
 
-13 feature tests cover the schema, public rendering, form-fragment attachment,
-the admin editor (incl. gate denial, reserved slugs, head-meta JSON decoding),
-audit columns and the sitemap.
+25 feature tests cover the schema, public rendering, form-fragment attachment,
+the admin editor, audit columns, the sitemap and the full agent loop: research
+and proposal filing, discovery of new pages, confidence/duplicate filtering,
+email + Telegram delivery, signed-link security and apply/reject semantics.
 
 ## License
 

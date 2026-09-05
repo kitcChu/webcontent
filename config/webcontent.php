@@ -14,16 +14,79 @@ return [
     |--------------------------------------------------------------------------
     | Admin authorization
     |--------------------------------------------------------------------------
-    | The admin editor routes (edit / update) run through this middleware stack
-    | and, when set, through this Laravel gate ability.
+    | The admin editor + proposal review routes run through this middleware
+    | stack and, when set, through this Laravel gate ability.
     |
     |   Gate::define('manage-web-content', fn ($user) => $user->is_admin);
     |
     | Set `gate` to null to skip the ability check entirely (NOT recommended
-    | for production).
+    | for production). Approve/discard links sent by email/Telegram are
+    | SIGNED urls and intentionally bypass login — the signature is the
+    | authorization.
     */
     'middleware' => ['web', 'auth'],
     'gate' => 'manage-web-content',
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI agent
+    |--------------------------------------------------------------------------
+    | The agent audits pages, researches fresh data and files proposals.
+    | It NEVER writes to web_contents by itself: proposals wait for approval.
+    |
+    | discovery_topics: searched once per run to propose NEW pages. Requires
+    | the searcher (below) to be enabled.
+    */
+    'agent' => [
+        'schedule_enabled' => env('WEBCONTENT_AGENT_SCHEDULE', false),
+        'cron' => env('WEBCONTENT_AGENT_CRON', '0 6 * * *'),
+        'max_pages_per_run' => (int) env('WEBCONTENT_AGENT_MAX_PAGES', 5),
+        'max_search_queries_per_page' => 3,
+        'discovery_topics' => [
+            // 'UK self storage market prices 2026',
+            // 'Hong Kong relocation regulations update',
+        ],
+        'content_chars_sent_to_ai' => 6000,
+        'min_confidence' => 0.6, // proposals below are discarded silently
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | AI model (any OpenAI-compatible endpoint)
+    */
+    'ai' => [
+        'base_url' => env('WEBCONTENT_AI_BASE_URL', 'https://api.deepseek.com'),
+        'api_key' => env('WEBCONTENT_AI_API_KEY'),
+        'model' => env('WEBCONTENT_AI_MODEL', 'deepseek-chat'),
+        'timeout' => 120,
+        'temperature' => 0.2,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Web search used by the agent ("find newer data")
+    | provider: none | tavily  (https://tavily.com — free tier available)
+    */
+    'search' => [
+        'provider' => env('WEBCONTENT_SEARCH_PROVIDER', 'none'),
+        'tavily_api_key' => env('WEBCONTENT_TAVILY_API_KEY'),
+        'max_results' => 5,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | "Ask me first" notifications
+    |--------------------------------------------------------------------------
+    | Configure either or both channels; signed approve/discard links are
+    | included. Without any channel configured the proposals still wait in
+    | the review UI and a warning is logged after each run.
+    */
+    'notify' => [
+        'email' => env('WEBCONTENT_NOTIFY_EMAIL'),
+        'telegram_bot_token' => env('WEBCONTENT_TELEGRAM_BOT_TOKEN'),
+        'telegram_chat_id' => env('WEBCONTENT_TELEGRAM_CHAT_ID'),
+        'links_expire_days' => 7,
+    ],
 
     /*
     |--------------------------------------------------------------------------
