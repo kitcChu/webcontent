@@ -38,11 +38,16 @@ class WebContentResearchCommand extends Command
         );
 
         $this->info(sprintf(
-            'Audited %d page(s) — %d proposal(s), %d skipped below confidence/duplicates.',
+            'Audited %d page(s) — %d proposal(s), %d skipped, %d failed.',
             $result['pages_audited'],
             $result['proposals']->count(),
             $result['skipped'],
+            $result['failed'],
         ));
+
+        if ($result['failed'] > 0) {
+            $this->warn('Some AI calls failed (logged); other pages were processed normally.');
+        }
 
         foreach ($result['proposals'] as $proposal) {
             $payload = $proposal instanceof \Kit\WebContent\Models\ContentProposal ? $proposal->toArray() : $proposal;

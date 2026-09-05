@@ -221,6 +221,47 @@ class AgentLoopTest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
+    public function a_failed_ai_reply_does_not_abort_the_run(): void
+    {
+        // Two pages; the first gets garbage (local-LLM style), the second a
+        // valid proposal. The run must survive and still file the second.
+        WebContent::create(['slug' => 'page-a', 'title' => 'A', 'content' => 'a', 'is_web_page' => true]);
+        $pageB = WebContent::create(['slug' => 'page-b', 'title' => 'B', 'content' => 'b', 'is_web_page' => true]);
+
+        config(['webcontent.ai.api_key' => 'test-key', 'webcontent.ai.base_url' => 'https://ai.example.com']);
+        $this->fakeAi([
+            ['proposals' => 'not-an-array'],                       // page A: malformed
+            ['proposals' => [$this->updatePayload([                 // page B: fine
+                'slug' => 'page-b', 'rationale' => 'b ok', 'confidence' => 0.9,
+                'proposed' => ['content' => 'B updated'],
+            ])]],
+        ]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        $this->assertSame(1, ContentProposal::query()->count());
+        $this->assertSame('page-b', ContentProposal::query()->sole()->slug);
+        $this->assertNull($pageB->fresh()->style); // nothing applied without approval
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function json_mode_can_be_disabled_for_servers_without_support(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.json_mode' => false,
+        ]);
+        $this->fakeAi([['proposals' => [$this->updatePayload()]]]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => !isset($request['response_format']));
+        $this->assertSame(1, ContentProposal::query()->count());
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
     public function signed_approve_link_applies_the_update(): void
     {
         $page = $this->seedPage();

@@ -53,13 +53,24 @@ return [
     /*
     |--------------------------------------------------------------------------
     | AI model (any OpenAI-compatible endpoint)
+    |
+    | Local LLM example (llama.cpp / LM Studio / vLLM):
+    |   WEBCONTENT_AI_BASE_URL=http://llm.internal:8080/v1
+    |   WEBCONTENT_AI_MODEL=<name your server serves>
+    |   WEBCONTENT_AI_API_KEY=local        # any non-empty value; LAN servers ignore it
+    |   WEBCONTENT_AI_TIMEOUT=1800         # slow boxes need a generous timeout
+    |
+    | json_mode sends response_format={"type":"json_object"}. Servers without
+    | JSON-grammar support can set WEBCONTENT_AI_JSON_MODE=false — the client
+    | still parses JSON out of plain replies.
     */
     'ai' => [
         'base_url' => env('WEBCONTENT_AI_BASE_URL', 'https://api.deepseek.com'),
         'api_key' => env('WEBCONTENT_AI_API_KEY'),
         'model' => env('WEBCONTENT_AI_MODEL', 'deepseek-chat'),
-        'timeout' => 120,
+        'timeout' => (int) env('WEBCONTENT_AI_TIMEOUT', 300),
         'temperature' => 0.2,
+        'json_mode' => env('WEBCONTENT_AI_JSON_MODE', true),
     ],
 
     /*

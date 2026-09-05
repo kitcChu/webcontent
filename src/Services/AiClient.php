@@ -14,14 +14,22 @@ class AiClient
 {
     public function chatJson(array $messages, ?float $temperature = null): array
     {
+        $body = [
+            'model' => config('webcontent.ai.model', 'deepseek-chat'),
+            'messages' => $messages,
+            'temperature' => $temperature ?? config('webcontent.ai.temperature', 0.2),
+        ];
+
+        // OpenAI-style JSON mode. Optional so servers without grammar/JSON
+        // support (some llama.cpp builds) still work — decode() is tolerant.
+        if (config('webcontent.ai.json_mode', true)) {
+            $body['response_format'] = ['type' => 'json_object'];
+        }
+
         $response = Http::withToken((string) config('webcontent.ai.api_key'))
-            ->timeout((int) config('webcontent.ai.timeout', 120))
-            ->post($this->endpoint(), [
-                'model' => config('webcontent.ai.model', 'deepseek-chat'),
-                'messages' => $messages,
-                'temperature' => $temperature ?? config('webcontent.ai.temperature', 0.2),
-                'response_format' => ['type' => 'json_object'],
-            ]);
+            ->timeout((int) config('webcontent.ai.timeout', 300))
+            ->connectTimeout(10)
+            ->post($this->endpoint(), $body);
 
         if ($response->failed()) {
             throw new RuntimeException(

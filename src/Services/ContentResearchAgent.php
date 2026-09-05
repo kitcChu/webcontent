@@ -33,7 +33,7 @@ class ContentResearchAgent
      * @param  string|null  $slug    audit a single page only
      * @param  int|null     $limit   max pages audited this run
      * @param  bool         $persist false = dry run, returns payloads only
-     * @return array{proposals: Collection, pages_audited: int, skipped: int, dry_run: bool}
+     * @return array{proposals: Collection, pages_audited: int, skipped: int, failed: int, dry_run: bool}
      */
     public function run(?string $slug = null, ?int $limit = null, bool $persist = true): array
     {
@@ -48,9 +48,19 @@ class ContentResearchAgent
 
         $payloads = [];
         $skipped = 0;
+        $failed = 0;
 
         foreach ($pages as $page) {
-            foreach ($this->auditPage($page) as $payload) {
+            try {
+                $pageProposals = $this->auditPage($page);
+            } catch (\Throwable $e) {
+                // Slow or flaky local LLMs must not abort the whole run.
+                report($e);
+                $failed++;
+                continue;
+            }
+
+            foreach ($pageProposals as $payload) {
                 if ($this->shouldSkip($payload)) {
                     $skipped++;
                     continue;
@@ -61,7 +71,15 @@ class ContentResearchAgent
 
         // Discovery is skipped when auditing a single page.
         if ($slug === null) {
-            foreach ($this->discover() as $payload) {
+            try {
+                $discovery = $this->discover();
+            } catch (\Throwable $e) {
+                report($e);
+                $discovery = [];
+                $failed++;
+            }
+
+            foreach ($discovery as $payload) {
                 if ($this->shouldSkip($payload)) {
                     $skipped++;
                     continue;
@@ -78,6 +96,7 @@ class ContentResearchAgent
             'proposals' => $proposals,
             'pages_audited' => $pages->count(),
             'skipped' => $skipped,
+            'failed' => $failed,
             'dry_run' => !$persist,
         ];
     }
