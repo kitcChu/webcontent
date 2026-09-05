@@ -145,11 +145,14 @@ Safety properties:
 ```dotenv
 WEBCONTENT_AGENT_SCHEDULE=true          # register the cron schedule
 WEBCONTENT_AGENT_CRON="0 5 * * *"       # when to run (default 05:00, APP timezone!)
-WEBCONTENT_AGENT_MAX_PAGES=5            # pages audited per run
 
-WEBCONTENT_AI_API_KEY=sk-...            # DeepSeek/OpenAI-compatible key
-WEBCONTENT_AI_BASE_URL=https://api.deepseek.com
-WEBCONTENT_AI_MODEL=deepseek-chat
+# Any OpenAI-compatible endpoint — cloud or LAN (llama.cpp, LM Studio, vLLM, proxy):
+WEBCONTENT_AI_BASE_URL=http://llm.internal:8080/v1
+WEBCONTENT_AI_MODEL=qwen-flash-next     # exact name served by the endpoint
+WEBCONTENT_AI_API_KEY=local             # any non-empty value for LAN servers
+WEBCONTENT_AI_TIMEOUT=1800              # slow boxes need generous timeouts
+WEBCONTENT_AI_JSON_MODE=false           # off if the server lacks response_format
+WEBCONTENT_AI_NO_THINKING=true          # llama.cpp reasoning_budget=0 (Qwen3/R1)
 
 WEBCONTENT_SEARCH_PROVIDER=tavily       # none | tavily
 WEBCONTENT_TAVILY_API_KEY=tvly-...
@@ -158,6 +161,17 @@ WEBCONTENT_NOTIFY_EMAIL=you@example.com
 WEBCONTENT_TELEGRAM_BOT_TOKEN=123:abc
 WEBCONTENT_TELEGRAM_CHAT_ID=42
 ```
+
+Notes for self-hosted setups:
+
+- **Reasoning models are handled**: if a reply comes back with empty
+  `content` and the JSON buried in `reasoning_content` (Qwen3 / DeepSeek-R1
+  style), the client extracts it. Set `WEBCONTENT_AI_NO_THINKING=true`
+  (llama.cpp `reasoning_budget=0`) so the model answers directly instead of
+  spending minutes thinking on a slow box.
+- **Routers/proxies**: point `WEBCONTENT_AI_BASE_URL` at the proxy and set
+  `WEBCONTENT_AI_MODEL` to a name the proxy routes — a proxy that requires a
+  model to route on will reject empty/omitted model names.
 
 `discovery_topics` (config file) lists subjects the agent researches to propose
 brand-new pages, e.g.:

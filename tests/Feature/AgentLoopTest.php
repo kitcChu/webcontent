@@ -262,6 +262,51 @@ class AgentLoopTest extends TestCase
     }
 
     #[\PHPUnit\Framework\Attributes\Test]
+    public function reasoning_models_with_empty_content_are_parsed_from_reasoning_content(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.json_mode' => false,
+        ]);
+
+        // Qwen3/R1-style reply: nothing in `content`, the JSON draft is
+        // buried inside chain-of-thought prose.
+        Http::fake(['ai.example.com/*' => Http::response([
+            'choices' => [['message' => [
+                'role' => 'assistant',
+                'content' => '',
+                'reasoning_content' => 'We need to audit the page. The price is outdated. '
+                    .'So the proposal is {"proposals":[{"action":"update","slug":"london-rate",'
+                    .'"rationale":"New price","confidence":0.9,"proposed":{"content":"<p>New</p>"}}]} '
+                    .'That covers it.',
+            ]]],
+        ])]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        $this->assertSame(1, ContentProposal::query()->count());
+        $this->assertSame('New price', ContentProposal::query()->sole()->rationale);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
+    public function no_thinking_switch_is_sent_when_enabled(): void
+    {
+        $this->seedPage();
+        config([
+            'webcontent.ai.api_key' => 'test-key',
+            'webcontent.ai.base_url' => 'https://ai.example.com',
+            'webcontent.ai.no_thinking' => true,
+        ]);
+        $this->fakeAi([['proposals' => []]]);
+
+        $this->artisan('webcontent:research', ['--no-notify' => true])->assertExitCode(0);
+
+        Http::assertSent(fn ($request) => $request['reasoning_budget'] === 0);
+    }
+
+    #[\PHPUnit\Framework\Attributes\Test]
     public function signed_approve_link_applies_the_update(): void
     {
         $page = $this->seedPage();

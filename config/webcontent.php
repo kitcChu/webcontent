@@ -63,6 +63,11 @@ return [
     | json_mode sends response_format={"type":"json_object"}. Servers without
     | JSON-grammar support can set WEBCONTENT_AI_JSON_MODE=false — the client
     | still parses JSON out of plain replies.
+    |
+    | no_thinking sends reasoning_budget=0 (llama.cpp) so reasoning models
+    | (Qwen3, DeepSeek-R1, …) answer directly instead of burning tokens on
+    | chain-of-thought. Replies buried in reasoning_content are parsed as a
+    | fallback either way.
     */
     'ai' => [
         'base_url' => env('WEBCONTENT_AI_BASE_URL', 'https://api.deepseek.com'),
@@ -71,6 +76,7 @@ return [
         'timeout' => (int) env('WEBCONTENT_AI_TIMEOUT', 300),
         'temperature' => 0.2,
         'json_mode' => env('WEBCONTENT_AI_JSON_MODE', true),
+        'no_thinking' => env('WEBCONTENT_AI_NO_THINKING', false),
     ],
 
     /*
